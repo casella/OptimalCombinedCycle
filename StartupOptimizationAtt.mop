@@ -1,0 +1,73 @@
+package StartupOptimizationAtt
+
+model StartupAttReference
+  CombinedCycle.Optimization.Plants.CC_Att_WarmStartup plant;
+  parameter Real u0 = 0.15 "Initial value of control variable";
+  parameter Real Tstart = 10000 "Start-up time";
+  parameter Real N = 6;
+  Real lambda;
+  parameter Real sf = 1e2 "Smoothing factor (higher->steeper)";
+  constant Real pi = Modelica.Constants.pi;
+  Real u1 = plant.load;
+  Real du1;
+  Real u2 = plant.TIT;
+equation
+  lambda = (atan(sf * (time - 4200)) + pi / 2) / pi;
+  u1 = u0 + (1 - u0) * (time / Tstart) / (1 + (time / Tstart) ^ N) ^ (1 / N);
+  du1 = der(u1);
+  u2 = 613 + 180 * (lambda + time / 4200 * (1 - lambda));
+end StartupAttReference;
+
+optimization StartupAttReferenceOpt (objectiveIntegrand = (plant.w_att - 0)^2, startTime = 0, finalTime = 10000)
+  parameter Real u0 = 0.15 "Initial value of control variable";
+  parameter Real tstart = 10000 "Start-up time";
+  parameter Real N = 6;
+  CombinedCycle.Optimization.Plants.CC_Att_WarmStartup plant;
+  Real u1 = plant.load;
+  Real du1;
+  input Real u2;
+equation
+  u1 = u0+(1-u0)*(time/tstart)/(1+(time/tstart)^N)^(1/N);
+  u2 = plant.TIT;
+  du1 = der(u1);
+constraint
+  plant.w_att >= 0;
+end StartupAttReferenceOpt;
+
+optimization StartupAtt (objectiveIntegrand = 1 * (u1 - 1)^2 + 0.01 * (plant.w_att / w_att_max - 0)^2, startTime = 0, finalTime = 5000)
+  parameter Real sigma_max = 2.8e8;
+  parameter Real w_att_max = 1.5;
+  CombinedCycle.Optimization.Plants.CC_Att_WarmStartup plant;
+  Real u1(start = 0.15, fixed = true, min = 0, max = 1);
+  input Real du1;
+  input Real u2;
+equation
+  u1 = plant.load;
+  du1 = der(u1);
+  u2 = plant.TIT;
+constraint
+  du1 >= 0;
+  du1 <= 0.1/60;
+  plant.sigma / sigma_max <= 1;
+  plant.w_att >= 0;
+  plant.w_att / w_att_max <= 1;
+end StartupAtt;
+
+optimization StartupAttCompare (objectiveIntegrand = (u1 - 1)^2, startTime = 0, finalTime = 5000)
+  parameter Real sigma_max = 2.8e8;
+  CombinedCycle.Optimization.Plants.CC_Att_reference_WarmStartup plant;
+  Real u1(start = 0.15, fixed = true, min = 0, max = 1);
+  input Real du1;
+  Real u2;
+equation
+  u1 = plant.load;
+  du1 = der(u1);
+  u2 = plant.TIT;
+  u2 = 0;
+constraint
+  du1 >= 0;
+  du1 <= 0.1/60;
+  plant.sigma / sigma_max <= 1;
+end StartupAttCompare;
+
+end StartupOptimizationAtt;
